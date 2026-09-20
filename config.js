@@ -1,2 +1,2 @@
-const SUPABASE_URL = "PASTE_SUPABASE_PROJECT_URL_HERE";
-const SUPABASE_KEY = "PASTE_SUPABASE_PUBLISHABLE_KEY_HERE";
+const SUPABASE_URL = "https://xmqxoczvjisasrysrkls.supabase.co/rest/v1/";
+const SUPABASE_KEY = "sb_publishable_qOIpMPw5J3EetOy5WdyTOQ_Lj_Tx1oC";
