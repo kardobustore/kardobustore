@@ -1,3 +1,1779 @@
-<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KARDOBU Admin</title><link rel="stylesheet" href="style.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script></head><body><header class="top"><div class="wrap nav"><div class="brand">KARDOBU<i>.</i> ADMIN</div><button id="lo" class="btn dark" style="display:none" onclick="logout()">LOGOUT</button></div></header><div class="wrap"><div id="login" class="panel" style="max-width:430px;margin:90px auto"><h1>Admin Login</h1><label>Email</label><input id="em"><label>Password</label><input id="pw" type="password"><br><br><button class="btn" onclick="login()">MASUK</button><div id="lm"></div></div><div id="dash" style="display:none"><section class="section"><h1>Dashboard KARDOBU</h1><div class="grid"><div class="panel"><span class="muted">PRODUK</span><h2 id="sp">0</h2></div><div class="panel"><span class="muted">ORDER</span><h2 id="so">0</h2></div><div class="panel"><span class="muted">PENDING</span><h2 id="sn">0</h2></div></div></section><div class="panel"><h2>Produk</h2><input type="hidden" id="id"><label>Nama</label><input id="name"><div class="row"><div><label>Harga</label><input id="price" type="number"></div><div><label>Stok</label><input id="stock" type="number"></div></div><label>Ukuran</label><input id="sizes" value="S,M,L,XL"><label>Status</label><select id="status"><option>READY</option><option>PRE-ORDER</option><option>SOLD OUT</option></select><label>URL Foto</label><input id="image"><label>Deskripsi</label><textarea id="desc"></textarea><br><br><button class="btn" onclick="save()">SIMPAN</button> <button class="btn dark" onclick="resetP()">RESET</button><div id="pmg"></div></div><div class="panel"><h2>Daftar Produk</h2><div id="pl">Memuat...</div></div><div class="panel"><h2>Pesanan</h2><div id="ol">Memuat...</div></div><div class="panel"><h2>Pengaturan</h2><label>Nama Toko</label><input id="shop"><label>WhatsApp tanpa +</label><input id="wa"><label>Instagram</label><input id="ig"><label>Judul</label><input id="hero"><label>Subjudul</label><textarea id="sub"></textarea><label>URL QRIS</label><input id="qris"><br><br><button class="btn" onclick="settingsSave()">SIMPAN</button><div id="sm"></div></div></div></div><script>
-const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY),rp=n=>new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(n||0),esc=x=>String(x??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');async function login(){lm.textContent='Login...';let r=await db.auth.signInWithPassword({email:em.value.trim(),password:pw.value});if(r.error){lm.innerHTML='<p class="danger">'+esc(r.error.message)+'</p>';return}login.style.display='none';dash.style.display='block';lo.style.display='block';load()}async function logout(){await db.auth.signOut();location.reload()}async function load(){let p=await db.from('products').select('*').order('created_at',{ascending:false});sp.textContent=p.data?.length||0;pl.innerHTML=(p.data||[]).map(x=>'<div class="cartline"><span><b>'+esc(x.name)+'</b><br><small>'+rp(x.price)+' · Stok '+x.stock+'</small></span><span><button class="btn dark" onclick=edit('+JSON.stringify(x)+')>EDIT</button> <button class="btn dark" onclick=del(\''+x.id+'\')>HAPUS</button></span></div>').join('')||'<p class="muted">Kosong.</p>';let o=await db.from('orders').select('*').order('created_at',{ascending:false});so.textContent=o.data?.length||0;sn.textContent=(o.data||[]).filter(x=>x.payment_status==='PENDING').length;ol.innerHTML=(o.data||[]).map(x=>'<div class="panel"><b>'+esc(x.order_code)+'</b><p>'+esc(x.customer_name)+' · '+esc(x.customer_phone)+'</p><p>'+rp(x.total_amount)+'</p><select onchange="stat(\''+x.id+'\',this.value)"><option '+(x.payment_status==='PENDING'?'selected':'')+'>PENDING</option><option '+(x.payment_status==='PAID'?'selected':'')+'>PAID</option><option '+(x.payment_status==='CANCELLED'?'selected':'')+'>CANCELLED</option></select></div>').join('')||'<p class="muted">Belum ada order.</p>';let s=await db.from('store_settings').select('*').eq('id',1).single();if(s.data){shop.value=s.data.shop_name||'';wa.value=s.data.whatsapp_number||'';ig.value=s.data.instagram||'';hero.value=s.data.hero_title||'';sub.value=s.data.hero_subtitle||'';qris.value=s.data.qris_image_url||''}}function edit(x){id.value=x.id;name.value=x.name;price.value=x.price;stock.value=x.stock;sizes.value=(x.sizes||[]).join(',');status.value=x.status;image.value=x.image_url||'';desc.value=x.description||';window.scrollTo(0,0)}function resetP(){id.value='';name.value='';price.value='';stock.value=0;sizes.value='S,M,L,XL';status.value='READY';image.value='';desc.value=''}async function save(){let x={name:name.value.trim(),price:+price.value||0,stock:+stock.value||0,sizes:sizes.value.split(',').map(x=>x.trim()).filter(Boolean),status:status.value,image_url:image.value.trim(),description:desc.value.trim(),updated_at:new Date().toISOString()};let r=id.value?await db.from('products').update(x).eq('id',id.value):await db.from('products').insert(x);if(r.error)pmg.innerHTML='<p class="danger">'+esc(r.error.message)+'</p>';else{pmg.innerHTML='<p class="ok">Tersimpan.</p>';resetP();load()}}async function del(i){if(confirm('Hapus produk?')){let r=await db.from('products').delete().eq('id',i);if(r.error)alert(r.error.message);else load()}}async function stat(i,s){let r=await db.from('orders').update({payment_status:s}).eq('id',i);if(r.error)alert(r.error.message);else load()}async function settingsSave(){let r=await db.from('store_settings').update({shop_name:shop.value,whatsapp_number:wa.value,instagram:ig.value,hero_title:hero.value,hero_subtitle:sub.value,qris_image_url:qris.value,updated_at:new Date().toISOString()}).eq('id',1);sm.innerHTML=r.error?'<p class="danger">'+esc(r.error.message)+'</p>':'<p class="ok">Tersimpan.</p>'}
-</script></body></html>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>KARDOBU — Admin</title>
+
+<link rel="stylesheet" href="style.css">
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body{
+    background:#050505;
+    color:#fff;
+    font-family:Arial,Helvetica,sans-serif;
+    margin:0;
+}
+
+.container{
+    width:min(1100px,92%);
+    margin:auto;
+}
+
+.header{
+    height:70px;
+    border-bottom:1px solid #222;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+}
+
+.logo{
+    font-size:22px;
+    font-weight:900;
+    letter-spacing:4px;
+}
+
+.logo span{
+    color:#777;
+}
+
+.card{
+    background:#0d0d0d;
+    border:1px solid #292929;
+    padding:25px;
+    margin:25px 0;
+    border-radius:10px;
+}
+
+.login-box{
+    width:min(430px,92%);
+    margin:80px auto;
+}
+
+h1,h2,h3{
+    margin-top:0;
+}
+
+label{
+    display:block;
+    color:#999;
+    font-size:13px;
+    margin:15px 0 7px;
+}
+
+input,
+textarea,
+select{
+    width:100%;
+    box-sizing:border-box;
+    background:#151515;
+    border:1px solid #333;
+    color:#fff;
+    padding:13px;
+    border-radius:6px;
+}
+
+textarea{
+    min-height:100px;
+}
+
+button{
+    cursor:pointer;
+}
+
+.btn{
+    border:1px solid #fff;
+    background:#fff;
+    color:#000;
+    padding:12px 18px;
+    border-radius:6px;
+    font-weight:bold;
+    margin-top:10px;
+}
+
+.btn-dark{
+    border:1px solid #333;
+    background:#111;
+    color:#fff;
+}
+
+.btn-danger{
+    border:1px solid #722;
+    background:#300;
+    color:#fff;
+}
+
+.link{
+    color:#aaa;
+    cursor:pointer;
+    text-decoration:underline;
+    margin-top:18px;
+    display:inline-block;
+}
+
+.message{
+    margin-top:15px;
+    padding:12px;
+    border-radius:6px;
+    display:none;
+}
+
+.error{
+    display:block;
+    background:#2a0808;
+    border:1px solid #722;
+    color:#ff9999;
+}
+
+.success{
+    display:block;
+    background:#082a10;
+    border:1px solid #275d35;
+    color:#9cffad;
+}
+
+.hidden{
+    display:none!important;
+}
+
+.stats{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:15px;
+}
+
+.stat{
+    background:#101010;
+    border:1px solid #292929;
+    padding:20px;
+    border-radius:8px;
+}
+
+.stat-number{
+    font-size:30px;
+    font-weight:bold;
+}
+
+.product-row,
+.order-row{
+    border-top:1px solid #292929;
+    padding:18px 0;
+}
+
+.flex{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+.grid2{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:15px;
+}
+
+.small{
+    color:#888;
+    font-size:13px;
+}
+
+@media(max-width:700px){
+    .stats,
+    .grid2{
+        grid-template-columns:1fr;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<header class="container header">
+
+    <div class="logo">
+        KARDOBU<span>.</span> ADMIN
+    </div>
+
+    <button
+        id="logoutButton"
+        class="btn btn-dark hidden"
+        onclick="logout()">
+        LOGOUT
+    </button>
+
+</header>
+
+
+<div class="container">
+
+<!-- ================= LOGIN ================= -->
+
+<section id="loginPage" class="login-box">
+
+    <div class="card">
+
+        <h1 id="loginTitle">Login Admin</h1>
+
+        <p class="small">
+            Masuk menggunakan email dan password
+            yang terdapat di Supabase Authentication.
+        </p>
+
+        <!-- LOGIN -->
+
+        <div id="loginForm">
+
+            <label>Email</label>
+
+            <input
+                type="email"
+                id="loginEmail"
+                placeholder="Email admin">
+
+            <label>Password</label>
+
+            <input
+                type="password"
+                id="loginPassword"
+                placeholder="Password">
+
+            <button
+                class="btn"
+                style="width:100%"
+                onclick="login()">
+                MASUK
+            </button>
+
+            <div
+                class="link"
+                onclick="showForgot()">
+                Lupa password?
+            </div>
+
+        </div>
+
+
+        <!-- FORGOT PASSWORD -->
+
+        <div id="forgotForm" class="hidden">
+
+            <h2>Reset Password</h2>
+
+            <p class="small">
+                Masukkan email akun admin kamu.
+                Supabase akan mengirimkan link reset password.
+            </p>
+
+            <label>Email</label>
+
+            <input
+                type="email"
+                id="resetEmail"
+                placeholder="Email admin">
+
+            <button
+                class="btn"
+                style="width:100%"
+                onclick="sendReset()">
+                KIRIM LINK RESET
+            </button>
+
+            <div
+                class="link"
+                onclick="showLogin()">
+                ← Kembali ke login
+            </div>
+
+        </div>
+
+
+        <!-- NEW PASSWORD -->
+
+        <div id="newPasswordForm" class="hidden">
+
+            <h2>Password Baru</h2>
+
+            <p class="small">
+                Masukkan password baru untuk akun admin.
+            </p>
+
+            <label>Password Baru</label>
+
+            <input
+                type="password"
+                id="newPassword"
+                placeholder="Minimal 6 karakter">
+
+            <label>Ulangi Password</label>
+
+            <input
+                type="password"
+                id="confirmPassword"
+                placeholder="Ulangi password">
+
+            <button
+                class="btn"
+                style="width:100%"
+                onclick="updatePassword()">
+                SIMPAN PASSWORD
+            </button>
+
+        </div>
+
+
+        <div id="authMessage" class="message"></div>
+
+    </div>
+
+</section>
+
+
+<!-- ================= DASHBOARD ================= -->
+
+<section id="dashboard" class="hidden">
+
+    <div class="card">
+
+        <h1>Dashboard KARDOBU</h1>
+
+        <p class="small">
+            Selamat datang di panel admin KARDOBU.
+        </p>
+
+    </div>
+
+
+    <!-- STAT -->
+
+    <div class="stats">
+
+        <div class="stat">
+
+            <div class="small">
+                PRODUK
+            </div>
+
+            <div
+                id="productCount"
+                class="stat-number">
+                0
+            </div>
+
+        </div>
+
+
+        <div class="stat">
+
+            <div class="small">
+                ORDER
+            </div>
+
+            <div
+                id="orderCount"
+                class="stat-number">
+                0
+            </div>
+
+        </div>
+
+
+        <div class="stat">
+
+            <div class="small">
+                PENDING
+            </div>
+
+            <div
+                id="pendingCount"
+                class="stat-number">
+                0
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- PRODUK -->
+
+    <div class="card">
+
+        <h2>Tambah / Edit Produk</h2>
+
+        <input
+            type="hidden"
+            id="productId">
+
+        <label>Nama Produk</label>
+
+        <input
+            id="productName"
+            placeholder="Contoh: KARDOBU Polo Black">
+
+
+        <div class="grid2">
+
+            <div>
+
+                <label>Harga</label>
+
+                <input
+                    id="productPrice"
+                    type="number"
+                    placeholder="210000">
+
+            </div>
+
+
+            <div>
+
+                <label>Stok</label>
+
+                <input
+                    id="productStock"
+                    type="number"
+                    placeholder="10">
+
+            </div>
+
+        </div>
+
+
+        <label>Ukuran</label>
+
+        <input
+            id="productSizes"
+            value="S,M,L,XL"
+            placeholder="S,M,L,XL">
+
+
+        <label>Status</label>
+
+        <select id="productStatus">
+
+            <option value="READY">
+                READY
+            </option>
+
+            <option value="PRE-ORDER">
+                PRE-ORDER
+            </option>
+
+            <option value="SOLD OUT">
+                SOLD OUT
+            </option>
+
+        </select>
+
+
+        <label>URL Foto Produk</label>
+
+        <input
+            id="productImage"
+            placeholder="https://...">
+
+
+        <label>Deskripsi</label>
+
+        <textarea
+            id="productDescription"
+            placeholder="Deskripsi produk"></textarea>
+
+
+        <div class="flex">
+
+            <button
+                class="btn"
+                onclick="saveProduct()">
+                SIMPAN PRODUK
+            </button>
+
+            <button
+                class="btn btn-dark"
+                onclick="resetProduct()">
+                RESET
+            </button>
+
+        </div>
+
+        <div
+            id="productMessage"
+            class="message"></div>
+
+    </div>
+
+
+    <!-- DAFTAR PRODUK -->
+
+    <div class="card">
+
+        <h2>Daftar Produk</h2>
+
+        <div id="productList">
+            Memuat produk...
+        </div>
+
+    </div>
+
+
+    <!-- PESANAN -->
+
+    <div class="card">
+
+        <h2>Pesanan Masuk</h2>
+
+        <div id="orderList">
+            Memuat pesanan...
+        </div>
+
+    </div>
+
+
+    <!-- PENGATURAN -->
+
+    <div class="card">
+
+        <h2>Pengaturan Toko</h2>
+
+        <label>Nama Toko</label>
+
+        <input id="shopName">
+
+
+        <label>WhatsApp Toko</label>
+
+        <input
+            id="shopWhatsapp"
+            placeholder="6281234567890">
+
+
+        <label>Instagram</label>
+
+        <input id="shopInstagram">
+
+
+        <label>Judul Beranda</label>
+
+        <input id="heroTitle">
+
+
+        <label>Subjudul Beranda</label>
+
+        <textarea id="heroSubtitle"></textarea>
+
+
+        <label>URL QRIS</label>
+
+        <input id="qrisUrl">
+
+
+        <button
+            class="btn"
+            onclick="saveSettings()">
+            SIMPAN PENGATURAN
+        </button>
+
+        <div
+            id="settingsMessage"
+            class="message"></div>
+
+    </div>
+
+</section>
+
+</div>
+
+
+<script>
+
+/* =========================================================
+   KONFIGURASI SUPABASE
+========================================================= */
+
+const SUPABASE_URL =
+"https://xidiyskrefayaimgoiyp.supabase.co";
+
+const SUPABASE_KEY =
+"sb_publishable_qOIpMPw5J3EetOy5WdyTOQ_Lj_Tx1oC";
+
+
+const supabaseClient =
+supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+);
+
+
+/* =========================================================
+   URL ADMIN
+========================================================= */
+
+const ADMIN_URL =
+"https://kardobustore-sketch.github.io/kardobustore/admin.html";
+
+
+/* =========================================================
+   HELPER
+========================================================= */
+
+function showMessage(element, text, type){
+
+    element.textContent = text;
+
+    element.className =
+        "message " + type;
+
+}
+
+
+function hideMessage(element){
+
+    element.className = "message";
+
+    element.textContent = "";
+
+}
+
+
+function rupiah(number){
+
+    return new Intl.NumberFormat(
+        "id-ID",
+        {
+            style:"currency",
+            currency:"IDR",
+            maximumFractionDigits:0
+        }
+    ).format(Number(number) || 0);
+
+}
+
+
+function escapeHTML(value){
+
+    return String(value ?? "")
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+
+}
+
+
+/* =========================================================
+   HALAMAN LOGIN
+========================================================= */
+
+function showLogin(){
+
+    document.getElementById("loginForm")
+        .classList.remove("hidden");
+
+    document.getElementById("forgotForm")
+        .classList.add("hidden");
+
+    document.getElementById("newPasswordForm")
+        .classList.add("hidden");
+
+    document.getElementById("loginTitle")
+        .textContent = "Login Admin";
+
+}
+
+
+function showForgot(){
+
+    document.getElementById("loginForm")
+        .classList.add("hidden");
+
+    document.getElementById("forgotForm")
+        .classList.remove("hidden");
+
+    document.getElementById("newPasswordForm")
+        .classList.add("hidden");
+
+    document.getElementById("loginTitle")
+        .textContent = "Reset Password";
+
+}
+
+
+function showNewPassword(){
+
+    document.getElementById("loginForm")
+        .classList.add("hidden");
+
+    document.getElementById("forgotForm")
+        .classList.add("hidden");
+
+    document.getElementById("newPasswordForm")
+        .classList.remove("hidden");
+
+    document.getElementById("loginTitle")
+        .textContent = "Password Baru";
+
+}
+
+
+/* =========================================================
+   LOGIN
+========================================================= */
+
+async function login(){
+
+    const email =
+        document.getElementById("loginEmail")
+        .value
+        .trim();
+
+    const password =
+        document.getElementById("loginPassword")
+        .value;
+
+
+    const message =
+        document.getElementById("authMessage");
+
+
+    if(!email || !password){
+
+        showMessage(
+            message,
+            "Email dan password wajib diisi.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    showMessage(
+        message,
+        "Sedang login...",
+        "success"
+    );
+
+
+    const { data, error } =
+        await supabaseClient.auth
+        .signInWithPassword({
+            email:email,
+            password:password
+        });
+
+
+    if(error){
+
+        showMessage(
+            message,
+            "Login gagal: " + error.message,
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    if(data.session){
+
+        showDashboard();
+
+    }
+
+}
+
+
+/* =========================================================
+   KIRIM RESET PASSWORD
+========================================================= */
+
+async function sendReset(){
+
+    const email =
+        document.getElementById("resetEmail")
+        .value
+        .trim();
+
+
+    const message =
+        document.getElementById("authMessage");
+
+
+    if(!email){
+
+        showMessage(
+            message,
+            "Masukkan email admin.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    showMessage(
+        message,
+        "Mengirim email reset...",
+        "success"
+    );
+
+
+    const { error } =
+        await supabaseClient.auth
+        .resetPasswordForEmail(
+            email,
+            {
+                redirectTo: ADMIN_URL
+            }
+        );
+
+
+    if(error){
+
+        showMessage(
+            message,
+            "Gagal mengirim reset: " +
+            error.message,
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    showMessage(
+        message,
+        "Email reset sudah dikirim. Buka email terbaru dari Supabase.",
+        "success"
+    );
+
+}
+
+
+/* =========================================================
+   DETEKSI RESET PASSWORD
+========================================================= */
+
+supabaseClient.auth.onAuthStateChange(
+    async (event, session) => {
+
+        console.log(
+            "Supabase Auth Event:",
+            event
+        );
+
+
+        if(event === "PASSWORD_RECOVERY"){
+
+            showNewPassword();
+
+            return;
+
+        }
+
+
+        if(event === "SIGNED_IN" && session){
+
+            /*
+              Kalau login biasa,
+              tampilkan dashboard.
+            */
+
+            if(
+                !window.location.hash.includes(
+                    "type=recovery"
+                )
+            ){
+
+                showDashboard();
+
+            }
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   UPDATE PASSWORD
+========================================================= */
+
+async function updatePassword(){
+
+    const password =
+        document.getElementById("newPassword")
+        .value;
+
+    const confirm =
+        document.getElementById("confirmPassword")
+        .value;
+
+
+    const message =
+        document.getElementById("authMessage");
+
+
+    if(password.length < 6){
+
+        showMessage(
+            message,
+            "Password minimal 6 karakter.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    if(password !== confirm){
+
+        showMessage(
+            message,
+            "Password tidak sama.",
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    showMessage(
+        message,
+        "Menyimpan password...",
+        "success"
+    );
+
+
+    const { error } =
+        await supabaseClient.auth
+        .updateUser({
+            password:password
+        });
+
+
+    if(error){
+
+        showMessage(
+            message,
+            "Gagal mengubah password: " +
+            error.message,
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    showMessage(
+        message,
+        "Password berhasil diubah. Membuka dashboard...",
+        "success"
+    );
+
+
+    setTimeout(
+        () => {
+
+            /*
+              Bersihkan URL recovery.
+            */
+
+            window.history.replaceState(
+                {},
+                document.title,
+                ADMIN_URL
+            );
+
+
+            showDashboard();
+
+        },
+        1200
+    );
+
+}
+
+
+/* =========================================================
+   DASHBOARD
+========================================================= */
+
+function showDashboard(){
+
+    document.getElementById("loginPage")
+        .classList.add("hidden");
+
+    document.getElementById("dashboard")
+        .classList.remove("hidden");
+
+    document.getElementById("logoutButton")
+        .classList.remove("hidden");
+
+    loadDashboard();
+
+}
+
+
+/* =========================================================
+   LOGOUT
+========================================================= */
+
+async function logout(){
+
+    await supabaseClient.auth.signOut();
+
+    window.location.href = ADMIN_URL;
+
+}
+
+
+/* =========================================================
+   LOAD DASHBOARD
+========================================================= */
+
+async function loadDashboard(){
+
+    await loadProducts();
+
+    await loadOrders();
+
+    await loadSettings();
+
+}
+
+
+/* =========================================================
+   PRODUCTS
+========================================================= */
+
+async function loadProducts(){
+
+    const result =
+        await supabaseClient
+        .from("products")
+        .select("*")
+        .order(
+            "created_at",
+            {
+                ascending:false
+            }
+        );
+
+
+    if(result.error){
+
+        document.getElementById(
+            "productList"
+        ).innerHTML =
+            '<p class="message error">' +
+            escapeHTML(result.error.message) +
+            '</p>';
+
+        return;
+
+    }
+
+
+    const products =
+        result.data || [];
+
+
+    document.getElementById(
+        "productCount"
+    ).textContent =
+        products.length;
+
+
+    const list =
+        document.getElementById(
+            "productList"
+        );
+
+
+    if(!products.length){
+
+        list.innerHTML =
+            '<p class="small">Belum ada produk.</p>';
+
+        return;
+
+    }
+
+
+    list.innerHTML =
+        products.map(product => `
+
+            <div class="product-row">
+
+                <h3>
+                    ${escapeHTML(product.name)}
+                </h3>
+
+                <p class="small">
+                    Harga:
+                    ${rupiah(product.price)}
+                    <br>
+
+                    Stok:
+                    ${product.stock}
+
+                    <br>
+
+                    Ukuran:
+                    ${escapeHTML(
+                        (product.sizes || []).join(", ")
+                    )}
+
+                    <br>
+
+                    Status:
+                    ${escapeHTML(product.status)}
+                </p>
+
+                <div class="flex">
+
+                    <button
+                        class="btn btn-dark"
+                        onclick='editProduct(${JSON.stringify(product)})'>
+                        EDIT
+                    </button>
+
+                    <button
+                        class="btn btn-danger"
+                        onclick="deleteProduct('${product.id}')">
+                        HAPUS
+                    </button>
+
+                </div>
+
+            </div>
+
+        `).join("");
+
+}
+
+
+/* =========================================================
+   EDIT PRODUCT
+========================================================= */
+
+function editProduct(product){
+
+    document.getElementById(
+        "productId"
+    ).value = product.id;
+
+    document.getElementById(
+        "productName"
+    ).value = product.name || "";
+
+    document.getElementById(
+        "productPrice"
+    ).value = product.price || 0;
+
+    document.getElementById(
+        "productStock"
+    ).value = product.stock || 0;
+
+    document.getElementById(
+        "productSizes"
+    ).value =
+        (product.sizes || []).join(",");
+
+    document.getElementById(
+        "productStatus"
+    ).value =
+        product.status || "READY";
+
+    document.getElementById(
+        "productImage"
+    ).value =
+        product.image_url || "";
+
+    document.getElementById(
+        "productDescription"
+    ).value =
+        product.description || "";
+
+    window.scrollTo({
+        top:500,
+        behavior:"smooth"
+    });
+
+}
+
+
+/* =========================================================
+   RESET PRODUCT
+========================================================= */
+
+function resetProduct(){
+
+    document.getElementById(
+        "productId"
+    ).value = "";
+
+    document.getElementById(
+        "productName"
+    ).value = "";
+
+    document.getElementById(
+        "productPrice"
+    ).value = "";
+
+    document.getElementById(
+        "productStock"
+    ).value = "0";
+
+    document.getElementById(
+        "productSizes"
+    ).value = "S,M,L,XL";
+
+    document.getElementById(
+        "productStatus"
+    ).value = "READY";
+
+    document.getElementById(
+        "productImage"
+    ).value = "";
+
+    document.getElementById(
+        "productDescription"
+    ).value = "";
+
+}
+
+
+/* =========================================================
+   SAVE PRODUCT
+========================================================= */
+
+async function saveProduct(){
+
+    const id =
+        document.getElementById(
+            "productId"
+        ).value;
+
+
+    const product = {
+
+        name:
+            document.getElementById(
+                "productName"
+            ).value.trim(),
+
+        price:
+            Number(
+                document.getElementById(
+                    "productPrice"
+                ).value
+            ) || 0,
+
+        stock:
+            Number(
+                document.getElementById(
+                    "productStock"
+                ).value
+            ) || 0,
+
+        sizes:
+            document.getElementById(
+                "productSizes"
+            ).value
+            .split(",")
+            .map(x => x.trim())
+            .filter(Boolean),
+
+        status:
+            document.getElementById(
+                "productStatus"
+            ).value,
+
+        image_url:
+            document.getElementById(
+                "productImage"
+            ).value.trim(),
+
+        description:
+            document.getElementById(
+                "productDescription"
+            ).value.trim(),
+
+        updated_at:
+            new Date().toISOString()
+
+    };
+
+
+    if(!product.name){
+
+        alert("Nama produk wajib diisi.");
+
+        return;
+
+    }
+
+
+    let result;
+
+
+    if(id){
+
+        result =
+            await supabaseClient
+            .from("products")
+            .update(product)
+            .eq("id",id);
+
+    }else{
+
+        result =
+            await supabaseClient
+            .from("products")
+            .insert(product);
+
+    }
+
+
+    const message =
+        document.getElementById(
+            "productMessage"
+        );
+
+
+    if(result.error){
+
+        showMessage(
+            message,
+            result.error.message,
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    showMessage(
+        message,
+        "Produk berhasil disimpan.",
+        "success"
+    );
+
+
+    resetProduct();
+
+    loadProducts();
+
+}
+
+
+/* =========================================================
+   DELETE PRODUCT
+========================================================= */
+
+async function deleteProduct(id){
+
+    if(!confirm(
+        "Yakin ingin menghapus produk ini?"
+    )) return;
+
+
+    const { error } =
+        await supabaseClient
+        .from("products")
+        .delete()
+        .eq("id",id);
+
+
+    if(error){
+
+        alert(
+            "Gagal menghapus: " +
+            error.message
+        );
+
+        return;
+
+    }
+
+
+    loadProducts();
+
+}
+
+
+/* =========================================================
+   ORDERS
+========================================================= */
+
+async function loadOrders(){
+
+    const result =
+        await supabaseClient
+        .from("orders")
+        .select("*")
+        .order(
+            "created_at",
+            {
+                ascending:false
+            }
+        );
+
+
+    if(result.error){
+
+        document.getElementById(
+            "orderList"
+        ).innerHTML =
+            '<p class="message error">' +
+            escapeHTML(result.error.message) +
+            '</p>';
+
+        return;
+
+    }
+
+
+    const orders =
+        result.data || [];
+
+
+    document.getElementById(
+        "orderCount"
+    ).textContent =
+        orders.length;
+
+
+    document.getElementById(
+        "pendingCount"
+    ).textContent =
+        orders.filter(
+            x =>
+                x.payment_status === "PENDING"
+        ).length;
+
+
+    if(!orders.length){
+
+        document.getElementById(
+            "orderList"
+        ).innerHTML =
+            '<p class="small">Belum ada pesanan.</p>';
+
+        return;
+
+    }
+
+
+    document.getElementById(
+        "orderList"
+    ).innerHTML =
+        orders.map(order => `
+
+            <div class="order-row">
+
+                <h3>
+                    ${escapeHTML(
+                        order.order_code
+                    )}
+                </h3>
+
+                <p>
+
+                    <b>
+                        ${escapeHTML(
+                            order.customer_name
+                        )}
+                    </b>
+
+                    <br>
+
+                    WhatsApp:
+                    ${escapeHTML(
+                        order.customer_phone
+                    )}
+
+                    <br>
+
+                    Alamat:
+                    ${escapeHTML(
+                        order.customer_address
+                    )}
+
+                </p>
+
+                <p>
+
+                    Total:
+                    <b>
+                        ${rupiah(
+                            order.total_amount
+                        )}
+                    </b>
+
+                </p>
+
+                <label>
+                    Status Pembayaran
+                </label>
+
+                <select
+                    onchange="
+                        updateOrderStatus(
+                            '${order.id}',
+                            this.value
+                        )
+                    ">
+
+                    <option
+                        value="PENDING"
+                        ${order.payment_status === "PENDING" ? "selected" : ""}>
+                        PENDING
+                    </option>
+
+                    <option
+                        value="PAID"
+                        ${order.payment_status === "PAID" ? "selected" : ""}>
+                        PAID
+                    </option>
+
+                    <option
+                        value="CANCELLED"
+                        ${order.payment_status === "CANCELLED" ? "selected" : ""}>
+                        CANCELLED
+                    </option>
+
+                </select>
+
+            </div>
+
+        `).join("");
+
+}
+
+
+/* =========================================================
+   UPDATE ORDER
+========================================================= */
+
+async function updateOrderStatus(
+    id,
+    status
+){
+
+    const { error } =
+        await supabaseClient
+        .from("orders")
+        .update({
+            payment_status:status
+        })
+        .eq("id",id);
+
+
+    if(error){
+
+        alert(
+            "Gagal mengubah status: " +
+            error.message
+        );
+
+        return;
+
+    }
+
+
+    loadOrders();
+
+}
+
+
+/* =========================================================
+   SETTINGS
+========================================================= */
+
+async function loadSettings(){
+
+    const result =
+        await supabaseClient
+        .from("store_settings")
+        .select("*")
+        .eq("id",1)
+        .maybeSingle();
+
+
+    if(result.error || !result.data){
+
+        return;
+
+    }
+
+
+    const settings =
+        result.data;
+
+
+    document.getElementById(
+        "shopName"
+    ).value =
+        settings.shop_name || "";
+
+
+    document.getElementById(
+        "shopWhatsapp"
+    ).value =
+        settings.whatsapp_number || "";
+
+
+    document.getElementById(
+        "shopInstagram"
+    ).value =
+        settings.instagram || "";
+
+
+    document.getElementById(
+        "heroTitle"
+    ).value =
+        settings.hero_title || "";
+
+
+    document.getElementById(
+        "heroSubtitle"
+    ).value =
+        settings.hero_subtitle || "";
+
+
+    document.getElementById(
+        "qrisUrl"
+    ).value =
+        settings.qris_image_url || "";
+
+}
+
+
+/* =========================================================
+   SAVE SETTINGS
+========================================================= */
+
+async function saveSettings(){
+
+    const data = {
+
+        shop_name:
+            document.getElementById(
+                "shopName"
+            ).value.trim(),
+
+        whatsapp_number:
+            document.getElementById(
+                "shopWhatsapp"
+            ).value.trim(),
+
+        instagram:
+            document.getElementById(
+                "shopInstagram"
+            ).value.trim(),
+
+        hero_title:
+            document.getElementById(
+                "heroTitle"
+            ).value.trim(),
+
+        hero_subtitle:
+            document.getElementById(
+                "heroSubtitle"
+            ).value.trim(),
+
+        qris_image_url:
+            document.getElementById(
+                "qrisUrl"
+            ).value.trim(),
+
+        updated_at:
+            new Date().toISOString()
+
+    };
+
+
+    const { error } =
+        await supabaseClient
+        .from("store_settings")
+        .update(data)
+        .eq("id",1);
+
+
+    const message =
+        document.getElementById(
+            "settingsMessage"
+        );
+
+
+    if(error){
+
+        showMessage(
+            message,
+            error.message,
+            "error"
+        );
+
+        return;
+
+    }
+
+
+    showMessage(
+        message,
+        "Pengaturan berhasil disimpan.",
+        "success"
+    );
+
+}
+
+
+/* =========================================================
+   CEK SESSION SAAT HALAMAN DIBUKA
+========================================================= */
+
+async function checkSession(){
+
+    const {
+        data
+    } =
+        await supabaseClient
+        .auth
+        .getSession();
+
+
+    if(data.session){
+
+        showDashboard();
+
+    }
+
+}
+
+
+/* =========================================================
+   START
+========================================================= */
+
+checkSession();
+
+</script>
+
+</body>
+</html>
